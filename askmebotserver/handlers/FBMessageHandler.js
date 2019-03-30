@@ -1,26 +1,28 @@
 const FACEBOOK_ACCESS_TOKEN = 'EAAhDdGtojlYBABWASAplWxZCZBIWe6ZBx7FpqrFOZAjKkymHyHaJKxc2aWfFcBwZCCbGFa032RtH1wMHYuBHgjGVRHwBQMIo0ngxRsaKjRpEV6Sn9OdUi8T7m8AtKnl7AxqgdzPTEswwiX5ZCbXQdUsxQGj72y7KoD67D47FqOOvzCRZCNeMLQ0'
 const RestClient = require('node-rest-client').Client
 const request = require('request')
+const googleDriveServices = require("../../google-drive");
+const msgServices = require("./msg.define");
 
 const sendTextMessage = (senderID, text) => {
-  console.log(text)
+    console.log(text)
     request({
         url: 'https://graph.facebook.com/v3.2/me/messages',
-        qs: { access_token: FACEBOOK_ACCESS_TOKEN},
+        qs: {access_token: FACEBOOK_ACCESS_TOKEN},
         method: 'POST',
         json: {
-            recipient: { id: senderID},
+            recipient: {id: senderID},
             message: text
         }
     }, function (err, response, body) {
-      console.log("error sendTextMessage", err);
+        console.log("error sendTextMessage", err);
         console.log('statusCode:', response && response.statusCode); // Print the response status code if a response was received
         console.log('body:', body); // Print the HTML for the Google homepage.
     })
 }
 const msgTemplate = ({customer_name}) => {
-  return (
-    `
+    return (
+        `
     {
       "attachment":{
       "type":"template",
@@ -38,11 +40,11 @@ const msgTemplate = ({customer_name}) => {
     }
   }
 `
-  )
+    )
 }
 const msgTemplate1 = ({customer_name, product_name, product_code, quantity, price, picture}) => {
-  return (
-    `
+    return (
+        `
     {
     "attachment":{
       "type":"template",
@@ -92,8 +94,9 @@ const msgTemplate1 = ({customer_name, product_name, product_code, quantity, pric
     }
   }
     `
-  )
-}
+    )
+};
+
 module.exports = (event) => {
     const senderID = event.sender.id
     const fbUserMessage = event.message.text
@@ -104,49 +107,77 @@ module.exports = (event) => {
     })
 
     getWitAPIData((witData) => {
-        if (witData.entities.greet)
-        {
-          sendTextMessage(senderID, { "text" : "Chào " + senderName + ", tôi có thể giúp gì được cho bạn?"})
+            const entities = Object.keys(witData.entities);
+            let msg = "";
+            if (entities.length > 0) {
+                entities.map(entity => {
+                    let message = "";
+                    switch (entity) {
+                        case "greet":
+                            sendTextMessage(senderID, {"text": "Chào " + senderName + ", tôi có thể giúp gì được cho bạn?"});
+                            break;
+                        case "askQuantity":
+                            sendTextMessage(senderID, {"text": "Chào " + senderName + ", quần bò shop còn 23 chiếc "})
+                            message = msgTemplate({customer_name: senderName});
+                            //       console.log("message temp", message);
+                            sendTextMessage(senderID, message);
+                            break;
+                        case "order":
+                            sendTextMessage(senderID, {"text": "Chào " + senderName + ", xác nhận đặt quần jeans giá 270 "})
+                            message = msgTemplate1({customer_name: senderName});
+                            sendTextMessage(senderID, message);
+                            break;
+                        default:
+                            const product = googleDriveServices(entity);
+                            console.log("Product match", product);
+                            msg = msgServices.product({senderName, productName: product["tênhàng"], price: product["giábán"]});
+                            sendTextMessage(senderID, {"text": msg})
+                            message = msgTemplate({customer_name: senderName});
+                            //       console.log("message temp", message);
+                            sendTextMessage(senderID, message);
+                            break;
+                    }
+                });
+            }
+
+            // if (witData.entities.greet) {
+            //     sendTextMessage(senderID, {"text": "Chào " + senderName + ", tôi có thể giúp gì được cho bạn?"})
+            // }
+            //
+            // if (witData.entities.askQuantity) {
+            //     sendTextMessage(senderID, {"text": "Chào " + senderName + ", quần bò shop còn 23 chiếc "})
+            //     const message = msgTemplate({customer_name: senderName});
+            //     //       console.log("message temp", message);
+            //     sendTextMessage(senderID, message);
+            // }
+
+            // if (witData.entities.JEAN27) {
+            //     sendTextMessage(senderID, {"text": "Chào " + senderName + ", giá quần bò là 270k "})
+            //     const message = msgTemplate({customer_name: senderName});
+            //     //       console.log("message temp", message);
+            //     sendTextMessage(senderID, message);
+            // }
+            //
+            //
+            // if (witData.entities.order) {
+            //     sendTextMessage(senderID, {"text": "Chào " + senderName + ", xác nhận đặt quần jeans giá 270 "})
+            //     const message1 = msgTemplate1({customer_name: senderName});
+            //     sendTextMessage(senderID, message1);
+            //
+            // }
 
 
-          }
-
-          if ( witData.entities.askQuantity)
-          {
-            sendTextMessage(senderID, { "text" : "Chào " + senderName + ", quần bò shop còn 23 chiếc "})
-            const message = msgTemplate({customer_name:senderName});
-       //       console.log("message temp", message);
-             sendTextMessage(senderID, message);
-           }
-
-       if ( witData.entities.JEAN27)
-       {
-         sendTextMessage(senderID, { "text" : "Chào " + senderName + ", giá quần bò là 270k "})
-         const message = msgTemplate({customer_name:senderName});
-    //       console.log("message temp", message);
-          sendTextMessage(senderID, message);
         }
+    )
 
-
-          if (witData.entities.order){
-            sendTextMessage(senderID, { "text" : "Chào " + senderName + ", xác nhận đặt quần jeans giá 270 "})
-            const message1 = msgTemplate1({customer_name:senderName});
-            sendTextMessage(senderID, message1);
-
-          }
-
-
-
-}
-  )
     // Ham goi den Wit.ai API
     function getWitAPIData(callback) {
         var client = new RestClient()
         var arguments = {
-            data: { userMessage: fbUserMessage },
-            headers: { "Content-Type": "application/json" }
+            data: {userMessage: fbUserMessage},
+            headers: {"Content-Type": "application/json"}
         };
-        client.post("http://localhost:4000/v1/getEntitiesInfo", arguments, function(data, response) {
+        client.post("http://localhost:4000/v1/getEntitiesInfo", arguments, function (data, response) {
             if (data.isSuccess == true) {
                 callback(data.data)
             } else {
@@ -163,7 +194,7 @@ module.exports = (event) => {
                 fields: 'first_name'
             },
             method: 'GET'
-        }, function(error, response, body) {
+        }, function (error, response, body) {
             if (!error) {
                 var bodyObject = JSON.parse(body)
                 callback(bodyObject.first_name)
